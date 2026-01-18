@@ -2,10 +2,15 @@ import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from src.state import GraphState
+from src.config import config
 
 class AnalystAgent:
-    def __init__(self, model_name="gpt-4o"):
-        self.llm = ChatOpenAI(model=model_name, temperature=0)
+    def __init__(self, model_name=None):
+        # Use LiteLLM configuration
+        llm_config = config.get_openai_config()
+        if model_name:
+            llm_config["model"] = model_name
+        self.llm = ChatOpenAI(**llm_config)
         self.system_prompt = """You are the **Visual Decomposition Specialist**. Your role is to perform 3D reverse engineering on 2D inputs.
 **Task:**
 Decompose the object in the provided image or description into its fundamental geometric primitives (Cubes, Cylinders, UV Spheres, Tori, Cones).

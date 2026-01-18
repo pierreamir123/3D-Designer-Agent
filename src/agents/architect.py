@@ -1,11 +1,16 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from src.state import GraphState
+from src.config import config
 import json
 
 class ArchitectAgent:
-    def __init__(self, model_name="gpt-4o"):
-        self.llm = ChatOpenAI(model=model_name, temperature=0)
+    def __init__(self, model_name=None):
+        # Use LiteLLM configuration
+        llm_config = config.get_openai_config()
+        if model_name:
+            llm_config["model"] = model_name
+        self.llm = ChatOpenAI(**llm_config)
         self.system_prompt = """You are the **BPY Code Architect**, a senior software engineer specialized in the Blender Python API.
 **Task:**
 Receive a validated JSON blueprint and synthesize an executable BPY script.
