@@ -1,0 +1,8 @@
+langgraph
+langchain
+langchain_openai
+gradio
+pydantic
+# bpy is often handled specially, but we list it here for completeness if available via pip
+# otherwise the user must run with a blender python environment
+bpy
