@@ -36,8 +36,8 @@ Return ONLY the Python code, wrapped in ```python ... ``` blocks.
 """
 
     def run(self, state: GraphState):
-        logger.info(f"Generating script for: {state.get('input_data', '')[:50]}...")
-        input_data = state["input_data"]
+        input_data = state.get("input_data", "No input provided")
+        logger.info(f"Generating script for: {input_data[:50]}...")
         messages = [SystemMessage(content=self.system_prompt)]
         
         # Add User input

@@ -6,58 +6,93 @@ logger = get_logger("BlenderOps")
 
 class BlenderOps:
     @staticmethod
-    def execute_bpy(script_content: str, execution_mode="exec") -> dict:
+    def execute_bpy(script_content: str) -> dict:
         """
-        Executes the provided BPY script content.
+        Executes the provided BPY script content in a separate subprocess.
+        Includes automated mesh quality analysis.
         """
-        logger.info("Executing BPY script...")
-        try:
-            import bpy
-            import math
-            # We might want to clear the scene first
-            bpy.ops.wm.read_factory_settings(use_empty=True)
-        except ImportError:
-            msg = "The 'bpy' module is not installed. Please install it via 'pip install bpy' or run in Blender."
-            logger.error(msg)
-            return {
-                "success": False, 
-                "error": msg,
-                "stdout": ""
-            }
+        import subprocess
+        import tempfile
+        import os
+        import sys
+        import json
 
-        # Capture stdout/stderr
-        import io
-        output_buffer = io.StringIO()
+        logger.info("Executing BPY script (Isolated Mode)...")
         
+        # We inject a helper at the end to check all meshes
+        analysis_helper = """
+import json
+import bmesh
+results = []
+for obj in bpy.data.objects:
+    if obj.type == 'MESH':
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        issues = []
+        if any(not e.is_manifold for e in bm.edges):
+            issues.append("Non-manifold geometry detected")
+        if any(f.calc_area() <= 0 for f in bm.faces):
+            issues.append("Degenerate faces found")
+        bm.free()
+        results.append({"name": obj.name, "issues": issues})
+print("---MESH_ANALYSIS_START---")
+print(json.dumps(results))
+print("---MESH_ANALYSIS_END---")
+"""
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tf:
+            full_script = "import bpy\nimport math\n"
+            full_script += "try:\n    bpy.ops.wm.read_factory_settings(use_empty=True)\nexcept: pass\n\n"
+            full_script += script_content
+            full_script += analysis_helper
+            tf.write(full_script)
+            temp_path = tf.name
+
         try:
-            with contextlib.redirect_stdout(output_buffer), contextlib.redirect_stderr(output_buffer):
-                # We need to execute the script in a namespace that has bpy
-                exec_globals = {"bpy": bpy, "math": math}
-                exec(script_content, exec_globals)
-        except Exception:
-            err_msg = traceback.format_exc()
-            logger.error(f"Error during BPY execution:\n{err_msg}")
-            return {
-                "success": False,
-                "error": err_msg,
-                "stdout": output_buffer.getvalue()
-            }
+            result = subprocess.run(
+                [sys.executable, temp_path],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                timeout=30
+            )
             
-        logger.info("BPY execution successful.")
-        return {
-            "success": True, 
-            "error": None, 
-            "stdout": output_buffer.getvalue()
-        }
+            stdout = result.stdout
+            stderr = result.stderr
+            
+            # Parse mesh analysis
+            mesh_issues = []
+            if "---MESH_ANALYSIS_START---" in stdout:
+                try:
+                    analysis_block = stdout.split("---MESH_ANALYSIS_START---")[1].split("---MESH_ANALYSIS_END---")[0].strip()
+                    mesh_info = json.loads(analysis_block)
+                    for info in mesh_info:
+                        if info["issues"]:
+                            mesh_issues.extend([f"[{info['name']}] {i}" for i in info["issues"]])
+                except:
+                    pass
+
+            if result.returncode != 0:
+                err_msg = f"BPY Subprocess failed ({result.returncode}).\nStderr: {stderr}"
+                return {"success": False, "error": err_msg, "stdout": stdout, "mesh_issues": mesh_issues}
+                
+            return {"success": True, "error": None, "stdout": stdout, "mesh_issues": mesh_issues}
+        except Exception as e:
+            return {"success": False, "error": str(e), "stdout": "", "mesh_issues": []}
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
     @staticmethod
     def validate_stl(file_path: str) -> dict:
         logger.info(f"Validating STL file: {file_path}")
         import os
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 100:
-             logger.info(f"STL validation passed: {os.path.getsize(file_path)} bytes.")
-             return {"valid": True, "issues": []}
-        
-        issues = ["File not created or empty"]
-        logger.warning(f"STL validation failed: {issues}")
-        return {"valid": False, "issues": issues}
+        if not os.path.exists(file_path):
+            return {"valid": False, "issues": ["STL file was not created"]}
+            
+        size = os.path.getsize(file_path)
+        if size < 100:
+             return {"valid": False, "issues": [f"STL file is too small ({size} bytes), likely empty"]}
+             
+        logger.info(f"STL basic validation passed: {size} bytes.")
+        return {"valid": True, "issues": []}

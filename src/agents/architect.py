@@ -37,9 +37,12 @@ class ArchitectAgent:
 """
 
     def run(self, state: GraphState):
-        blueprint = state["json_blueprint"]
+        blueprint = state.get("json_blueprint", {})
         errors = state.get("errors", [])
         
+        if not blueprint:
+            logger.warning("Architect called but no blueprint found.")
+            
         logger.info("Synthesizing BPY code from blueprint...")
         
         # Base Prompt

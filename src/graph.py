@@ -21,6 +21,9 @@ memory = MemorySaver()
 
 # --- Node Functions ---
 
+from src.agents.tester import TesterAgent
+tester = TesterAgent()
+
 def analyst_node(state: GraphState):
     logger.info("\n" + "="*50)
     logger.info(">>> NODE: ANALYST")
@@ -45,8 +48,20 @@ def validator_node(state: GraphState):
     logger.info("="*50)
     return validator.run(state)
 
+def tester_node(state: GraphState):
+    logger.info("\n" + "="*50)
+    logger.info(">>> NODE: TESTER (QA)")
+    logger.info("="*50)
+    return tester.run(state)
+
+def supervisor_node(state: GraphState):
+    logger.info("\n" + "="*50)
+    logger.info(">>> NODE: SUPERVISOR")
+    logger.info("="*50)
+    return {}
+
 def route_supervisor(state: GraphState):
-    logger.info(">>> NODE: SUPERVISOR (Routing)")
+    logger.info(">>> SUPERVISOR (Routing)")
     decision = supervisor.run(state)
     return decision["next_agent"]
 
@@ -56,11 +71,23 @@ def route_validator(state: GraphState):
     
     if errors:
         if retry_count < 3:
-            logger.info(f"Validation failed (Attempt {retry_count + 1}/3). Retrying...")
-            # Route back to Supervisor to decide who fixes it (Architect or Coder)
+            logger.info(f"Validator found code errors (Attempt {retry_count + 1}/3). Retrying...")
             return "supervisor"
         else:
-            logger.warning("Max retries reached. Stopping execution.")
+            logger.warning("Max retries reached in Validator.")
+            return "end"
+    return "tester"
+
+def route_tester(state: GraphState):
+    errors = state.get("errors", [])
+    retry_count = state.get("retry_count", 0)
+    
+    if errors:
+        if retry_count < 3:
+            logger.info(f"Tester found quality issues (Attempt {retry_count + 1}/3). Routing back for enhancement...")
+            return "supervisor"
+        else:
+            logger.warning("Max retries reached in Tester. Completing with best effort.")
             return "end"
     return "end"
 
@@ -72,10 +99,10 @@ workflow.add_node("analyst", analyst_node)
 workflow.add_node("architect", architect_node)
 workflow.add_node("coder", coder_node)
 workflow.add_node("validator", validator_node)
-workflow.add_node("supervisor", route_supervisor)
+workflow.add_node("tester", tester_node)
+workflow.add_node("supervisor", supervisor_node)
 
 # Set Entry Point
-# We start at Supervisor to allow routing to Coder vs Analyst based on prompt
 workflow.set_entry_point("supervisor")
 
 # Conditional Routing from Supervisor
@@ -85,25 +112,37 @@ workflow.add_conditional_edges(
     {
         "analyst": "analyst",
         "architect": "architect",
-        "coder": "coder"
+        "coder": "coder",
+        "finish": END
     }
 )
 
 # Standard Flows
-workflow.add_edge("analyst", "supervisor") # After analysis, re-route (often stops at interrupt if configured)
+workflow.add_edge("analyst", "supervisor") 
 workflow.add_edge("architect", "validator")
 workflow.add_edge("coder", "validator")
 
-# Validator Routing (Success -> End, Fail -> Repair)
+# Validator Routing
 workflow.add_conditional_edges(
     "validator",
     route_validator,
     {
-        "supervisor": "supervisor", # Go back to supervisor to dispatch repair
+        "supervisor": "supervisor", 
+        "tester": "tester"
+    }
+)
+
+# Tester Routing
+workflow.add_conditional_edges(
+    "tester",
+    route_tester,
+    {
+        "supervisor": "supervisor",
         "end": END
     }
 )
 
 # Compile
-# interrupt_after=["analyst"] allows user to review the blueprint if Analyst was called.
-app = workflow.compile(checkpointer=memory, interrupt_after=["analyst"])
+# We interrupt after analyst (to review plan) and tester (to review final mesh)
+app = workflow.compile(checkpointer=memory, interrupt_after=["analyst", "tester"]) 
+

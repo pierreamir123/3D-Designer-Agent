@@ -29,15 +29,17 @@ def process_chat(user_input, history, json_data, thread_id, is_initial):
                 pass
         except Exception as e:
             err_msg = f"Error during analysis: {str(e)}"
-            logger.error(err_msg)
+            logger.error(err_msg, exc_info=True)
             history[-1] = (user_input, err_msg)
-            return history, {}, None, None, True
+            # Must return 7 values: history, json, model, file, is_initial, code, test_report
+            return history, {}, None, None, True, "", ""
 
         # Fetch state
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
         blueprint = vals.get("json_blueprint", {})
         code = vals.get("bpy_code", "")
+        test_report = vals.get("test_report", "")
         
         bot_msg = "I've analyzed your request. Please review the **Blueprint** on the right.\n\nIf it looks good, type **'Proceed'** or **'Build'**. If you want changes, just tell me (e.g., 'Make it taller')."
         history[-1] = (user_input, bot_msg)
@@ -48,27 +50,36 @@ def process_chat(user_input, history, json_data, thread_id, is_initial):
             None,               # 3D Model (None)
             None,               # Download (None)
             False,              # is_initial -> False
-            code                # BPY Code
+            code,               # BPY Code
+            test_report         # Quality Report
         )
 
-    # 2. FEEDBACK LOOP: User feedback -> Supervisor -> Architect/Analyst -> Validator
+    # 2. FEEDBACK LOOP: User feedback -> Supervisor -> Analyst/Architect/Coder -> Validator -> Tester
     else:
         logger.info(f"Resuming with feedback: {user_input[:50]}...")
+        snapshot = graph_app.get_state(config)
         
-        # Update state with potentially modified JSON and new feedback
-        graph_app.update_state(config, {"json_blueprint": json_data, "feedback": user_input})
-        
-        # Resume execution
-        # We send None to resume from the interrupt state
+        # Decide if we are RESUMING or STARTING A NEW RUN
+        if not snapshot.next:
+            # Graph already completed, start fresh from supervisor with feedback
+            logger.info("Graph at END. Starting new run from entry point.")
+            stream_input = {"feedback": user_input}
+        else:
+            # Graph is interrupted (at Analyst or Tester)
+            logger.info(f"Graph is interrupted at {snapshot.next}. Resuming.")
+            graph_app.update_state(config, {"json_blueprint": json_data, "feedback": user_input})
+            stream_input = None
+
+        # Execute
         try:
-            for event in graph_app.stream(None, config=config):
+            for event in graph_app.stream(stream_input, config=config):
                 # We could stream partial status updates to chat here if we wanted
                 pass
         except Exception as e:
             err_msg = f"Error during generation: {str(e)}"
-            logger.error(err_msg)
+            logger.error(err_msg, exc_info=True)
             history[-1] = (user_input, err_msg)
-            return history, {}, None, None, False, ""
+            return history, {}, None, None, False, "", ""
 
         # Fetch final state
         snapshot = graph_app.get_state(config)
@@ -76,31 +87,33 @@ def process_chat(user_input, history, json_data, thread_id, is_initial):
         final_stl = vals.get("stl_path")
         errors = vals.get("errors", [])
         final_code = vals.get("bpy_code", "")
+        test_report = vals.get("test_report", "")
 
         if final_stl:
-            msg = f"✅ **Generation Complete!**\n\nI've generated the 3D model. You can preview it on the right or download the STL file.\nSaved to: `{os.path.basename(final_stl)}`"
+            msg = f"✅ **Generation Complete!**\n\nI've generated the 3D model. You can preview it on the right or download the STL file."
             if errors:
-                msg += f"\n\n⚠️ **Note:** There were some non-critical issues: {errors}"
+                msg += f"\n\n⚠️ **Note:** There were technical issues: {errors}"
             history[-1] = (user_input, msg)
-            return history, vals.get("json_blueprint", {}), final_stl, final_stl, False, final_code
+            return history, vals.get("json_blueprint", {}), final_stl, final_stl, False, final_code, test_report
         
         elif errors:
-            msg = f"❌ **Generation Failed**\n\nThe Validator reported errors:\n" + "\n".join([f"- {e}" for e in errors])
-            msg += "\n\nPlease try rephrasing your request."
+            msg = f"❌ **Generation Failed**\n\nIssues found:\n" + "\n".join([f"- {e}" for e in errors])
             history[-1] = (user_input, msg)
-            return history, vals.get("json_blueprint", {}), None, None, False, final_code
+            return history, vals.get("json_blueprint", {}), None, None, False, final_code, test_report
         
         else:
-            # If we looped back to Analyst (interrupted again)
-            if snapshot.next and "analyst" in snapshot.next:
-                # Should not happen if interrupt is AFTER analyst, but if we route supervisor->analyst->interrupt
-                bot_msg = "I've updated the plan based on your feedback. Please review the new Blueprint."
-                history[-1] = (user_input, bot_msg)
-                return history, vals.get("json_blueprint", {}), None, None, False, final_code
+            # If the graph is interrupted (meaning we are waiting for user review)
+            next_nodes = list(snapshot.next) if snapshot.next else []
             
-            # Catch-all
-            history[-1] = (user_input, "Processing complete, but no STL was returned. Check logs.")
-            return history, vals.get("json_blueprint", {}), None, None, False, final_code
+            if "tester" in next_nodes:
+                 bot_msg = "✅ **3D Model Ready!**\n\nI've generated the first version. Review the **Quality Report** and **3D Preview**. \n\nIf you want changes, type them here. Otherwise, we're done!"
+            elif "supervisor" in next_nodes or "analyst" in next_nodes:
+                 bot_msg = "I've updated the plan. Review the **Blueprint** and type **'Build'** if it's ready."
+            else:
+                 bot_msg = "Processing complete. Check the tabs for results."
+            
+            history[-1] = (user_input, bot_msg)
+            return history, vals.get("json_blueprint", {}), None, None, False, final_code, test_report
 
 
 with gr.Blocks(title="3D Designer Agent", theme=gr.themes.Soft(primary_hue="blue", secondary_hue="slate")) as demo:
@@ -150,12 +163,15 @@ with gr.Blocks(title="3D Designer Agent", theme=gr.themes.Soft(primary_hue="blue
                     
                 with gr.TabItem("Generated Code"):
                     code_output = gr.Code(label="BPY Script", language="python", lines=20)
+                
+                with gr.TabItem("Quality Report"):
+                    test_output = gr.Markdown(label="Technical Analysis")
                     
     # Event Handlers
     submit_btn.click(
         process_chat,
         inputs=[msg_input, chatbot, json_output, thread_state, is_initial_state],
-        outputs=[chatbot, json_output, model_output, download_output, is_initial_state, code_output]
+        outputs=[chatbot, json_output, model_output, download_output, is_initial_state, code_output, test_output]
     ).then(
         lambda: "", None, msg_input # Clear input box
     )
@@ -163,7 +179,7 @@ with gr.Blocks(title="3D Designer Agent", theme=gr.themes.Soft(primary_hue="blue
     msg_input.submit(
         process_chat,
         inputs=[msg_input, chatbot, json_output, thread_state, is_initial_state],
-        outputs=[chatbot, json_output, model_output, download_output, is_initial_state, code_output]
+        outputs=[chatbot, json_output, model_output, download_output, is_initial_state, code_output, test_output]
     ).then(
         lambda: "", None, msg_input
     )

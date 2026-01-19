@@ -34,6 +34,7 @@ class ValidatorAgent:
             current_retries = state.get("retry_count", 0)
             return {
                 "errors": [result["error"]],
+                "mesh_issues": [],
                 "messages": state.get("messages", []) + [f"Validator found error: {result['error']}"],
                 "retry_count": current_retries + 1
             }
@@ -41,17 +42,21 @@ class ValidatorAgent:
         # Check if STL exists
         logger.info(f"BPY executed successfully. Validating mesh: {output_stl}")
         validation = BlenderOps.validate_stl(output_stl)
+        mesh_issues = result.get("mesh_issues", [])
+        
         if not validation["valid"]:
              logger.warning(f"Mesh Issues Found: {validation['issues']}")
              current_retries = state.get("retry_count", 0)
              return {
-                "errors": validation["issues"],
+                 "errors": validation["issues"],
+                 "mesh_issues": mesh_issues,
                  "messages": state.get("messages", []) + [f"Validator found mesh issues: {validation['issues']}"],
                  "retry_count": current_retries + 1
              }
              
-        logger.info("STL validation successful. Object is ready.")
+        logger.info(f"STL validation successful. Technical issues found: {len(mesh_issues)}")
         return {
             "stl_path": output_stl,
-            "errors": []
+            "errors": [],
+            "mesh_issues": mesh_issues
         }

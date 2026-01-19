@@ -9,5 +9,7 @@ class GraphState(TypedDict):
     stl_path: str  # Path to the exported STL
     feedback: str  # User feedback string
     errors: List[str]  # Validation errors
+    mesh_issues: List[str] # Procedural mesh analysis results
+    test_report: str # Detailed testing report for iteration
     messages: List[BaseMessage]  # Chat history
     retry_count: int # Track number of self-correction attempts
