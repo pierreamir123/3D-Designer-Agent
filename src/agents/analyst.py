@@ -27,28 +27,17 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
 """
 
     def run(self, state: GraphState):
+        print(f"   [Analyst] Analyzing input: {state.get('input_data', 'No input')[:50]}...")
         input_data = state["input_data"]
         messages = [SystemMessage(content=self.system_prompt)]
         
-        # Check if input is likely an image path or text
-        # For simplicity in this demo, if it looks like a path, we treat it as image, else text
-        # (In a real app, we'd check extensions)
-        if hasattr(input_data, "lower") and (input_data.lower().endswith(('.png', '.jpg', '.jpeg'))):
-             # Assuming we have a way to Load image content, or pass URL. 
-             # OpenAI accepts base64 or urls. 
-             # For this scaffold, we will assume input is text description for now 
-             # UNLESS the user explicitly handles image loading. 
-             # Let's assume text for the MVP unless updated.
-             content = [{"type": "text", "text": "Analyze this 3D object:"}, 
-                        {"type": "image_url", "image_url": {"url": f"file://{input_data}"}}] # Local file URI scheme might fail depending on LangChain version, usually needs base64
-             # For safety/speed, let's just stick to text processing for the scaffold 
-             # or user description if provided.
-             pass 
-
+        # ... logic ...
+        
         # Simple text handling
         messages.append(HumanMessage(content=f"Decompose this object: {input_data}"))
         
         if state.get("feedback"):
+             print(f"   [Analyst] incorporating user feedback: {state['feedback']}")
              messages.append(HumanMessage(content=f"User Feedback on previous iteration: {state['feedback']}"))
 
         response = self.llm.invoke(messages)
@@ -64,7 +53,9 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
             
         try:
             blueprint = json.loads(json_str)
+            print(f"   [Analyst] Successfully generated blueprint with {len(blueprint.get('primitives', []))} primitives.")
         except json.JSONDecodeError:
+            print("   [Analyst] Error: Failed to parse JSON response from LLM.")
             blueprint = {"error": "Failed to parse JSON", "raw": content}
 
         return {"json_blueprint": blueprint}

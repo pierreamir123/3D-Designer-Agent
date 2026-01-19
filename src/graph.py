@@ -15,31 +15,27 @@ supervisor = SupervisorAgent()
 memory = MemorySaver()
 
 def analyst_node(state: GraphState):
-    print("---ANALYST---")
+    print("\n" + "="*50)
+    print(">>> NODE: ANALYST")
+    print("="*50)
     return analyst.run(state)
 
-def supervisor_node(state: GraphState):
-    print("---SUPERVISOR---")
-    # This node just determines routing, but in LangGraph we often return state updates.
-    # Supervisor run returns {"next_agent": ...} which isn't part of GraphState directly unless we add it
-    # or we use it in the conditional edge. 
-    # Let's effectively just pass through here, or store 'next_agent' in state if needed.
-    # Actually, we can make the supervisor logic PART of the conditional edge function.
-    # But to keep it modular as an 'Agent', let's run it here and store decision in a temp key or use return.
-    # For simplicity, let's strictly return the decision in a key 'next_step' in state? 
-    # Or better: Use the agent instance inside the conditional edge function.
-    # Let's do the latter for cleaner graph, OR have this node update 'feedback_classification'.
-    return {} 
-
 def architect_node(state: GraphState):
-    print("---ARCHITECT---")
+    print("\n" + "="*50)
+    print(">>> NODE: ARCHITECT")
+    print("="*50)
     return architect.run(state)
 
 def validator_node(state: GraphState):
-    print("---VALIDATOR---")
+    print("\n" + "="*50)
+    print(">>> NODE: VALIDATOR")
+    print("="*50)
     return validator.run(state)
 
 def route_supervisor(state: GraphState):
+    print("\n" + "="*50)
+    print(">>> NODE: SUPERVISOR (Routing)")
+    print("="*50)
     # logic from supervisor agent
     decision = supervisor.run(state)
     return decision["next_agent"]

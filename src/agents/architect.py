@@ -28,16 +28,13 @@ Receive a validated JSON blueprint and synthesize an executable BPY script.
 
     def run(self, state: GraphState):
         blueprint = state["json_blueprint"]
+        print(f"   [Architect] Synthesizing BPY code from blueprint...")
         
         # If there's feedback and existing code, we might want to iterate.
-        # But per flow, Architect takes JSON and makes code. 
-        # Modification happens at Analyst level (structural) or possibly here for property changes?
-        # User prompt says: "Text-Based Feedback... analyze if it requires a structural change (route to Analyst) or a property change (route to Architect)."
-        # So we should handle feedback if routed here.
-        
         msg_content = f"Generate BPY code for this blueprint:\n{json.dumps(blueprint, indent=2)}"
         
         if state.get("feedback"):
+             print(f"   [Architect] Applying feedback/context: {state['feedback']}")
              msg_content += f"\n\nContext/User Feedback: {state['feedback']}"
 
         messages = [
@@ -54,4 +51,5 @@ Receive a validated JSON blueprint and synthesize an executable BPY script.
         elif "```" in code:
             code = code.split("```")[1].split("```")[0].strip()
             
+        print(f"   [Architect] BPY script generated ({len(code)} characters).")
         return {"bpy_code": code}

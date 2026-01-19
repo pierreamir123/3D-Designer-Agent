@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="2.png" width="300" alt="3D Designer Agent Logo">
+</p>
+
 # 3D Designer Agent
 
 An autonomous 3D modeling assistant powered by **LangGraph**, **Gradio**, and **Blender Python (BPY)**.

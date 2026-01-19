@@ -31,15 +31,15 @@ Return a JSON with a single key "next_agent" which can be "analyst" or "architec
         feedback = state.get("feedback")
         errors = state.get("errors")
         
-        # If there are errors from validator, we force back to architect (or we could let specific logic handle it, but supervisor can do it)
+        print(f"   [Supervisor] Evaluating next step. Feedback: {feedback[:30] if feedback else 'None'}, Errors: {bool(errors)}")
+
+        # If there are errors from validator, we force back to architect
         if errors:
+            print(f"   [Supervisor] Routing back to ARCHITECT to fix {len(errors)} error(s).")
             return {"next_agent": "architect"}
             
         if not feedback:
-            # If no feedback and no errors, and we just came from Analyst (implied by flow), 
-            # we assume approval? Or maybe we wait.
-            # But usually this node is called AFTER human input.
-            # If empty feedback, assume proceed to architect.
+            print("   [Supervisor] No feedback provided, proceeding to ARCHITECT.")
             return {"next_agent": "architect"}
 
         messages = [
@@ -56,7 +56,8 @@ Return a JSON with a single key "next_agent" which can be "analyst" or "architec
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
             result = json.loads(content)
+            print(f"   [Supervisor] Decision: Route to {result.get('next_agent', 'architect').upper()}.")
             return result
         except:
-            # Fallback
+            print("   [Supervisor] Error parsing decision, defaulting to ARCHITECT.")
             return {"next_agent": "architect"}
