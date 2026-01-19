@@ -9,3 +9,4 @@ src/config/__pycache__/__init__.cpython-311.pyc
 src/utils/__pycache__/blender_ops.cpython-311.pyc
 *__pycache__
 *.pyc
+src/__pycache__/graph.cpython-311.pyc
