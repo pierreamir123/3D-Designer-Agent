@@ -1,1 +1,11 @@
 .env
+src/__pycache__/graph.cpython-311.pyc
+src/__pycache__/state.cpython-311.pyc
+src/agents/__pycache__/analyst.cpython-311.pyc
+src/agents/__pycache__/architect.cpython-311.pyc
+src/agents/__pycache__/supervisor.cpython-311.pyc
+src/agents/__pycache__/validator.cpython-311.pyc
+src/config/__pycache__/__init__.cpython-311.pyc
+src/utils/__pycache__/blender_ops.cpython-311.pyc
+*__pycache__
+*.pyc
