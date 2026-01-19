@@ -2,3 +2,6 @@
 logs/
 *__pycache__
 *.pyc
+outputs/design_20260119_030227.stl
+outputs/design_20260119_032123.stl
+outputs/*

@@ -14,20 +14,22 @@ class SupervisorAgent:
         if model_name:
             llm_config["model"] = model_name
         self.llm = ChatOpenAI(**llm_config)
-        self.system_prompt = """You are the **3D Agent Supervisor**. 
-You orchestrate the flow between the Analyst, the Architect, and the Human-in-the-loop.
+        self.system_prompt = """You are the **Workflow Supervisor**.
+Your goal is to route the user's request to the appropriate worker agent.
+**Workers:**
+1.  **analyst**: visual decomposition (default for "design", "make", "create" object requests).
+2.  **architect**: generates BPY code from a JSON blueprint (from analyst).
+3.  **coder**: generates BPY code DIRECTLY (use for "script", "code", "python", "procedural" requests).
 
-**Task:**
-Analyze the user's text feedback and the current state to decide the next step.
-
-**Routing Rules:**
-1. If the user feedback implies a **structural change** (e.g., "add a leg", "change shape to sphere", "remove the top"), route to **Analyst**.
-2. If the user feedback implies a **property change** (e.g., "make it thicker", "rotate it", "move it up", "red"), route to **Architect**.
-3. If the user just approved or said "looks good" or "build it", and we haven't built it yet, route to **Architect**.
-4. If we just finished validation and there are errors, route to **Architect** to fix them. (This might be handled by Validator edges, but good to know).
+**Routing Logic:**
+*   If the user asks to "make a [shape]", "design a [object]" -> **analyst**.
+*   If the user asks to "write a script", "generate code", "python" -> **coder**.
+*   If there is feedback on a BLUEPRINT -> **analyst**.
+*   If there is feedback on a 3D MODEL/CODE -> **architect** (or **coder** if code-based).
+*   If `errors` exist -> **architect** (or **coder**).
 
 **Output:**
-Return a JSON with a single key "next_agent" which can be "analyst" or "architect".
+Return a JSON object: `{"next_agent": "analyst" | "architect" | "coder"}`.
 """
 
     def run(self, state: GraphState):
@@ -59,6 +61,13 @@ Return a JSON with a single key "next_agent" which can be "analyst" or "architec
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
             result = json.loads(content)
+            
+            # Safety check: if result is a list, extract the first dict if possible or default
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+                result = result[0]
+            elif not isinstance(result, dict):
+                result = {"next_agent": "architect"}
+
             logger.info(f"Decision: Route to {result.get('next_agent', 'architect').upper()}.")
             return result
         except Exception as e:

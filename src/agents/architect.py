@@ -38,14 +38,21 @@ class ArchitectAgent:
 
     def run(self, state: GraphState):
         blueprint = state["json_blueprint"]
+        errors = state.get("errors", [])
+        
         logger.info("Synthesizing BPY code from blueprint...")
         
-        # If there's feedback and existing code, we might want to iterate.
+        # Base Prompt
         msg_content = f"Generate BPY code for this blueprint:\n{json.dumps(blueprint, indent=2)}"
         
+        # CONTEXT INJECTION: Feedback & Errors
         if state.get("feedback"):
-             logger.info(f"Applying feedback/context: {state['feedback']}")
+             logger.info(f"Applying feedback: {state['feedback']}")
              msg_content += f"\n\nContext/User Feedback: {state['feedback']}"
+
+        if errors:
+            logger.info(f"Self-Correction Mode: Fixing {len(errors)} errors.")
+            msg_content += f"\n\nCRITICAL: The previous code failed with the following errors. You MUST fix them:\n" + "\n".join(errors)
 
         messages = [
             SystemMessage(content=self.system_prompt),

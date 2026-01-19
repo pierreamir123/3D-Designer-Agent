@@ -16,25 +16,28 @@ class AnalystAgent:
         self.llm = ChatOpenAI(**llm_config)
         self.system_prompt = """You are the **Visual Decomposition Specialist**. Your role is to perform 3D reverse engineering on 2D inputs.
 **Task:**
-Decompose the object in the provided image or description into its fundamental geometric primitives (Cubes, Cylinders, UV Spheres, Tori, Cones).
+1. **Analyze**: First, describe the object's structure in natural language. Think about how to break it down into simple shapes.
+2. **Decompose**: Then, create a JSON blueprint of the fundamental geometric primitives (Cubes, Cylinders, UV Spheres, Tori, Cones).
+
 **Output Requirements:**
-You must output a valid JSON schema representing the 'Reverse Engineering Blueprint'.
-* **primitive_type**: Must be a standard Blender primitive (Cube, Cylinder, UV Sphere, Torus, Cone).
-* **dimensions**: Precise scale factors or radius/depth.
-* **transform**: Location and Rotation in radians.
-* **boolean_op**: Specify if the part should be joined (UNION) or used as a cutter (DIFFERENCE).
+You must output a JSON object with two keys:
+*   "reasoning": A string containing your step-by-step structural analysis.
+*   "blueprint": A valid JSON schema representing the 3D plan.
+
+**Blueprint Schema:**
+*   **primitive_type**: Must be a standard Blender primitive.
+*   **dimensions**: Precise scale factors.
+*   **transform**: Location and Rotation.
+*   **boolean_op**: UNION or DIFFERENCE.
 
 **Operational Constraint:**
-Do not write Python code. Provide only the JSON structure. Your output will be used for human review before any code generation occurs.
-Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
+Wrap your JSON output in ```json ... ``` blocks.
 """
 
     def run(self, state: GraphState):
         logger.info(f"Analyzing input: {state.get('input_data', 'No input')[:50]}...")
         input_data = state["input_data"]
         messages = [SystemMessage(content=self.system_prompt)]
-        
-        # ... logic ...
         
         # Simple text handling
         messages.append(HumanMessage(content=f"Decompose this object: {input_data}"))
@@ -55,10 +58,26 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
             json_str = content
             
         try:
-            blueprint = json.loads(json_str)
-            logger.info(f"Successfully generated blueprint with {len(blueprint.get('primitives', []))} primitives.")
+            parsed = json.loads(json_str)
+            # Handle both new CoT format and potential legacy format
+            if "reasoning" in parsed and "blueprint" in parsed:
+                reasoning = parsed["reasoning"]
+                blueprint = parsed["blueprint"]
+            else:
+                reasoning = "No explicit reasoning provided."
+                blueprint = parsed
+
+            # Safety check for list-based blueprints
+            if isinstance(blueprint, list):
+                blueprint = {"primitives": blueprint}
+            
+            num_primitives = len(blueprint.get('primitives', [])) if isinstance(blueprint, dict) else "unknown"
+            logger.info(f"Analysis Complete. Reasoning: {reasoning[:100]}...")
+            logger.info(f"Blueprint generated with {num_primitives} primitives.")
+            
+            return {"json_blueprint": blueprint, "reasoning": reasoning, "retry_count": 0}
         except json.JSONDecodeError:
             logger.error(f"Failed to parse JSON response from LLM. Raw content: {content[:200]}...")
             blueprint = {"error": "Failed to parse JSON", "raw": content}
 
-        return {"json_blueprint": blueprint}
+        return {"json_blueprint": blueprint, "retry_count": 0}
