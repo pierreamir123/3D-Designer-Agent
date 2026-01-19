@@ -33,19 +33,21 @@ class LiteLLMConfig:
         """
         print(f"Loading LiteLLM Config: Model={self.default_model}, BaseURL={self.base_url}")
         if self.api_key:
-            print(f"API Key present (starts with {self.api_key[:3]}...)")
+            masked_key = self.api_key[:3] + "..." + self.api_key[-4:] if len(self.api_key) > 7 else "***"
+            print(f"API Key present: {masked_key}")
         else:
             print("API Key is missing!")
 
         config = {
             "model": self.default_model,
-            "api_key": self.api_key,
+            "openai_api_key": self.api_key,
             "temperature": 0
         }
         
-        # Add base URL - LangChain uses 'base_url' in newer versions
+        # Add base URL - LangChain uses 'base_url' or 'openai_api_base'
         if self.base_url:
             config["base_url"] = self.base_url
+            config["openai_api_base"] = self.base_url
             
         return config
 
