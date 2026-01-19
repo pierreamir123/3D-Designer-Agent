@@ -52,13 +52,14 @@ def run_step(message, json_data, thread_id, is_initial):
             for event in graph_app.stream(inputs, config=config):
                 pass
         except Exception as e:
-            return {}, None, f"Error: {str(e)}", True
+            return {}, None, None, f"Error: {str(e)}", True
             
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
         return (
             vals.get("json_blueprint", {}),
-            None,
+            None, # No 3D model yet
+            None, # No download yet
             "Blueprint generated. Review and Edit JSON, then click Continue.",
             False # is_initial set to False
         )
@@ -85,7 +86,7 @@ def run_step(message, json_data, thread_id, is_initial):
                         if "messages" in value:
                             msgs.extend(value["messages"])
         except Exception as e:
-            return {}, None, f"Runtime Error: {str(e)}", False
+            return {}, None, None, f"Runtime Error: {str(e)}", False
         
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
@@ -113,30 +114,36 @@ def run_step(message, json_data, thread_id, is_initial):
         return (
             vals.get("json_blueprint", {}),
             final_stl,
+            final_stl, # Path for the download component
             status_msg,
             False 
         )
 
-with gr.Blocks(title="3D Designer Agent") as demo:
-    gr.Markdown("# Autonomous 3D Designer Agent")
+with gr.Blocks(title="3D Designer Agent", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🛠️ Autonomous 3D Designer Agent")
     
     thread_state = gr.State(str(uuid.uuid4()))
     is_initial_state = gr.State(True)
     
     with gr.Row():
         with gr.Column(scale=1):
-            msg_input = gr.Textbox(label="Instruction / Feedback", placeholder="Describe 3D object...")
-            submit_btn = gr.Button("Submit / Continue")
-            status_output = gr.Markdown("Ready")
+            msg_input = gr.Textbox(label="Instruction / Feedback", placeholder="Describe 3D object to build...")
+            submit_btn = gr.Button("Submit / Continue", variant="primary")
+            status_output = gr.Markdown("🟢 Ready")
             
         with gr.Column(scale=1):
-            json_output = gr.JSON(label="Blueprint (Editable)")
-            model_output = gr.Model3D(label="3D Preview", clear_color=[0.0, 0.0, 0.0, 0.0])
+            json_output = gr.JSON(label="Blueprint (Editable JSON)")
+            model_output = gr.Model3D(
+                label="3D Preview", 
+                clear_color=[0.1, 0.1, 0.1, 1.0], # Dark gray opaque background
+                height=400
+            )
+            download_output = gr.File(label="Download STL")
 
     submit_btn.click(
         run_step,
         inputs=[msg_input, json_output, thread_state, is_initial_state],
-        outputs=[json_output, model_output, status_output, is_initial_state]
+        outputs=[json_output, model_output, download_output, status_output, is_initial_state]
     )
 
 if __name__ == "__main__":
