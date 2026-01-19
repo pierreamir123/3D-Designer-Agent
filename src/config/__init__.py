@@ -7,7 +7,13 @@ from typing import Optional
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
-load_dotenv()
+env_path = os.path.join(os.getcwd(), '.env')
+if os.path.exists(env_path):
+    print(f"Found .env file at {env_path}")
+    load_dotenv(env_path)
+else:
+    print(f"No .env file found at {env_path}, using system environment variables.")
+    load_dotenv()
 
 class LiteLLMConfig:
     """Configuration for LiteLLM proxy integration."""
@@ -25,6 +31,12 @@ class LiteLLMConfig:
         """
         Returns configuration dict for LangChain's ChatOpenAI to use LiteLLM proxy.
         """
+        print(f"Loading LiteLLM Config: Model={self.default_model}, BaseURL={self.base_url}")
+        if self.api_key:
+            print(f"API Key present (starts with {self.api_key[:3]}...)")
+        else:
+            print("API Key is missing!")
+
         config = {
             "model": self.default_model,
             "api_key": self.api_key,

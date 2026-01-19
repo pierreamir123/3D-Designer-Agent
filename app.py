@@ -48,8 +48,11 @@ def run_step(message, json_data, thread_id, is_initial):
         # User entered description/image path
         inputs = {"input_data": message, "messages": []}
         # Iterate until interrupt
-        for event in graph_app.stream(inputs, config=config):
-            pass
+        try:
+            for event in graph_app.stream(inputs, config=config):
+                pass
+        except Exception as e:
+            return {}, None, f"Error: {str(e)}", True
             
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
@@ -73,10 +76,11 @@ def run_step(message, json_data, thread_id, is_initial):
         for event in graph_app.stream(None, config=config):
             # event is dictionary of node_name: value
             for key, value in event.items():
-                if "stl_path" in value:
-                     final_stl = value["stl_path"]
-                if "messages" in value:
-                    msgs.extend(value["messages"])
+                if value and isinstance(value, dict):
+                    if "stl_path" in value:
+                        final_stl = value["stl_path"]
+                    if "messages" in value:
+                        msgs.extend(value["messages"])
         
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
