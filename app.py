@@ -73,14 +73,19 @@ def run_step(message, json_data, thread_id, is_initial):
         final_stl = None
         msgs = []
         
-        for event in graph_app.stream(None, config=config):
-            # event is dictionary of node_name: value
-            for key, value in event.items():
-                if value and isinstance(value, dict):
-                    if "stl_path" in value:
-                        final_stl = value["stl_path"]
-                    if "messages" in value:
-                        msgs.extend(value["messages"])
+        try:
+            for event in graph_app.stream(None, config=config):
+                # event is dictionary of node_name: value
+                if not event:
+                    continue
+                for key, value in event.items():
+                    if value and isinstance(value, dict):
+                        if "stl_path" in value:
+                            final_stl = value["stl_path"]
+                        if "messages" in value:
+                            msgs.extend(value["messages"])
+        except Exception as e:
+            return {}, None, f"Runtime Error: {str(e)}", False
         
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
