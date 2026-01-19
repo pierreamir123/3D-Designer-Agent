@@ -1,6 +1,9 @@
 from src.state import GraphState
 from src.utils.blender_ops import BlenderOps
+from src.config.logger import get_logger
 import os
+
+logger = get_logger("Validator")
 
 class ValidatorAgent:
     def __init__(self):
@@ -8,7 +11,7 @@ class ValidatorAgent:
 
     def run(self, state: GraphState):
         bpy_code = state.get("bpy_code", "")
-        print(f"   [Validator] Executing BPY script and checking for STL generation...")
+        logger.info("Executing BPY script and checking for STL generation...")
         
         output_stl = os.path.abspath("output.stl")
         
@@ -18,23 +21,23 @@ class ValidatorAgent:
         result = BlenderOps.execute_bpy(script)
         
         if not result["success"]:
-            print(f"   [Validator] Execution Error: {result['error']}")
+            logger.error(f"Execution Error: {result['error']}")
             return {
                 "errors": [result["error"]],
                 "messages": state.get("messages", []) + [f"Validator found error: {result['error']}"]
             }
             
         # Check if STL exists
-        print(f"   [Validator] BPY executed successfully. Validating mesh: {output_stl}")
+        logger.info(f"BPY executed successfully. Validating mesh: {output_stl}")
         validation = BlenderOps.validate_stl(output_stl)
         if not validation["valid"]:
-             print(f"   [Validator] Mesh Issues Found: {validation['issues']}")
+             logger.warning(f"Mesh Issues Found: {validation['issues']}")
              return {
                 "errors": validation["issues"],
                  "messages": state.get("messages", []) + [f"Validator found mesh issues: {validation['issues']}"]
              }
              
-        print("   [Validator] STL validation successful. Object is ready.")
+        logger.info("STL validation successful. Object is ready.")
         return {
             "stl_path": output_stl,
             "errors": []

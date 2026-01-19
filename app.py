@@ -1,13 +1,17 @@
 import gradio as gr
 import uuid
 from src.graph import app as graph_app
+from src.config.logger import get_logger
 import os
+
+logger = get_logger("App")
 
 # Create a unique thread ID for this session (for simplicity, one global session for now, 
 # or 1 per page load if we could, but Gradio state is better)
 # We'll stick to a generated UUID stored in gr.State
 
 def process_input(user_input, thread_id, current_state):
+    logger.info(f"Processing input for thread {thread_id}")
     config = {"configurable": {"thread_id": thread_id}}
     
     # Check if we are starting fresh or resuming
@@ -42,9 +46,11 @@ def process_input(user_input, thread_id, current_state):
         pass
 
 def run_step(message, json_data, thread_id, is_initial):
+    logger.info(f"Step Triggered: is_initial={is_initial}, thread_id={thread_id}")
     config = {"configurable": {"thread_id": thread_id}}
     
     if is_initial:
+        logger.info(f"Starting initial analysis stage with message: {message[:50]}...")
         # User entered description/image path
         inputs = {"input_data": message, "messages": []}
         # Iterate until interrupt
@@ -52,10 +58,12 @@ def run_step(message, json_data, thread_id, is_initial):
             for event in graph_app.stream(inputs, config=config):
                 pass
         except Exception as e:
+            logger.error(f"Error during initial stream: {str(e)}")
             return {}, None, None, f"Error: {str(e)}", True
             
         snapshot = graph_app.get_state(config)
         vals = snapshot.values
+        logger.info("Initial analysis stage complete (interrupted for user review).")
         return (
             vals.get("json_blueprint", {}),
             None, # No 3D model yet
@@ -64,7 +72,7 @@ def run_step(message, json_data, thread_id, is_initial):
             False # is_initial set to False
         )
     else:
-        # Resuming
+        logger.info(f"Resuming with feedback: {message[:50]}...")
         # Update state with the (potentially modified) JSON and feedback
         graph_app.update_state(config, {"json_blueprint": json_data, "feedback": message})
         
@@ -86,6 +94,7 @@ def run_step(message, json_data, thread_id, is_initial):
                         if "messages" in value:
                             msgs.extend(value["messages"])
         except Exception as e:
+            logger.error(f"Error during resume stream: {str(e)}")
             return {}, None, None, f"Runtime Error: {str(e)}", False
         
         snapshot = graph_app.get_state(config)
@@ -94,7 +103,10 @@ def run_step(message, json_data, thread_id, is_initial):
         
         status_msg = "Generation Complete." if final_stl else "Processing..."
         if vals.get("errors"):
+            logger.warning(f"Generation finished with errors: {vals['errors']}")
             status_msg = f"Errors: {vals['errors']}"
+        else:
+            logger.info(f"Generation successful. STL path: {final_stl}")
             
         # Check if we looped back to analyst (if supervisor routed validation fail or structural change)
         if snapshot.next and "analyst" in snapshot.next:

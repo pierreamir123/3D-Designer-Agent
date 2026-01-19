@@ -3,6 +3,9 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from src.state import GraphState
 from src.config import config
+from src.config.logger import get_logger
+
+logger = get_logger("Analyst")
 
 class AnalystAgent:
     def __init__(self, model_name=None):
@@ -27,7 +30,7 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
 """
 
     def run(self, state: GraphState):
-        print(f"   [Analyst] Analyzing input: {state.get('input_data', 'No input')[:50]}...")
+        logger.info(f"Analyzing input: {state.get('input_data', 'No input')[:50]}...")
         input_data = state["input_data"]
         messages = [SystemMessage(content=self.system_prompt)]
         
@@ -37,7 +40,7 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
         messages.append(HumanMessage(content=f"Decompose this object: {input_data}"))
         
         if state.get("feedback"):
-             print(f"   [Analyst] incorporating user feedback: {state['feedback']}")
+             logger.info(f"Incorporating user feedback: {state['feedback']}")
              messages.append(HumanMessage(content=f"User Feedback on previous iteration: {state['feedback']}"))
 
         response = self.llm.invoke(messages)
@@ -53,9 +56,9 @@ Wrap your JSON output in ```json ... ``` blocks so it can be parsed easily.
             
         try:
             blueprint = json.loads(json_str)
-            print(f"   [Analyst] Successfully generated blueprint with {len(blueprint.get('primitives', []))} primitives.")
+            logger.info(f"Successfully generated blueprint with {len(blueprint.get('primitives', []))} primitives.")
         except json.JSONDecodeError:
-            print("   [Analyst] Error: Failed to parse JSON response from LLM.")
+            logger.error(f"Failed to parse JSON response from LLM. Raw content: {content[:200]}...")
             blueprint = {"error": "Failed to parse JSON", "raw": content}
 
         return {"json_blueprint": blueprint}

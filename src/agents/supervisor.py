@@ -2,7 +2,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from src.state import GraphState
 from src.config import config
+from src.config.logger import get_logger
 import json
+
+logger = get_logger("Supervisor")
 
 class SupervisorAgent:
     def __init__(self, model_name=None):
@@ -31,15 +34,15 @@ Return a JSON with a single key "next_agent" which can be "analyst" or "architec
         feedback = state.get("feedback")
         errors = state.get("errors")
         
-        print(f"   [Supervisor] Evaluating next step. Feedback: {feedback[:30] if feedback else 'None'}, Errors: {bool(errors)}")
+        logger.info(f"Evaluating next step. Feedback provided: {bool(feedback)}, Errors present: {bool(errors)}")
 
         # If there are errors from validator, we force back to architect
         if errors:
-            print(f"   [Supervisor] Routing back to ARCHITECT to fix {len(errors)} error(s).")
+            logger.info(f"Routing back to ARCHITECT to fix {len(errors)} error(s).")
             return {"next_agent": "architect"}
             
         if not feedback:
-            print("   [Supervisor] No feedback provided, proceeding to ARCHITECT.")
+            logger.info("No feedback provided, proceeding to ARCHITECT.")
             return {"next_agent": "architect"}
 
         messages = [
@@ -56,8 +59,8 @@ Return a JSON with a single key "next_agent" which can be "analyst" or "architec
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
             result = json.loads(content)
-            print(f"   [Supervisor] Decision: Route to {result.get('next_agent', 'architect').upper()}.")
+            logger.info(f"Decision: Route to {result.get('next_agent', 'architect').upper()}.")
             return result
-        except:
-            print("   [Supervisor] Error parsing decision, defaulting to ARCHITECT.")
+        except Exception as e:
+            logger.error(f"Error parsing decision: {str(e)}. Raw content: {content[:200]}...")
             return {"next_agent": "architect"}

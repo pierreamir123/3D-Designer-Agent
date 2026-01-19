@@ -5,6 +5,9 @@ from src.agents.architect import ArchitectAgent
 from src.agents.validator import ValidatorAgent
 from langgraph.checkpoint.memory import MemorySaver
 from src.agents.supervisor import SupervisorAgent
+from src.config.logger import get_logger
+
+logger = get_logger("Graph")
 
 # Initialize Agents
 analyst = AnalystAgent()
@@ -15,27 +18,19 @@ supervisor = SupervisorAgent()
 memory = MemorySaver()
 
 def analyst_node(state: GraphState):
-    print("\n" + "="*50)
-    print(">>> NODE: ANALYST")
-    print("="*50)
+    logger.info(">>> NODE: ANALYST")
     return analyst.run(state)
 
 def architect_node(state: GraphState):
-    print("\n" + "="*50)
-    print(">>> NODE: ARCHITECT")
-    print("="*50)
+    logger.info(">>> NODE: ARCHITECT")
     return architect.run(state)
 
 def validator_node(state: GraphState):
-    print("\n" + "="*50)
-    print(">>> NODE: VALIDATOR")
-    print("="*50)
+    logger.info(">>> NODE: VALIDATOR")
     return validator.run(state)
 
 def route_supervisor(state: GraphState):
-    print("\n" + "="*50)
-    print(">>> NODE: SUPERVISOR (Routing)")
-    print("="*50)
+    logger.info(">>> NODE: SUPERVISOR (Routing)")
     # logic from supervisor agent
     decision = supervisor.run(state)
     return decision["next_agent"]

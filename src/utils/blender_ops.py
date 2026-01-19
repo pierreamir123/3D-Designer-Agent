@@ -1,36 +1,32 @@
-import sys
-import io
 import contextlib
 import traceback
+from src.config.logger import get_logger
+
+logger = get_logger("BlenderOps")
 
 class BlenderOps:
     @staticmethod
     def execute_bpy(script_content: str, execution_mode="exec") -> dict:
         """
         Executes the provided BPY script content.
-        For now, we attempt to run it within the current python process assuming 'bpy' is installed.
-        If 'bpy' is not installed, we return an error indicating dependency missing.
-        
-        Args:
-            script_content (str): The python code to run.
-            execution_mode (str): 'exec' (in-process) or 'subprocess' (TODO)
-            
-        Returns:
-            dict: {"success": bool, "error": str, "stdout": str}
         """
+        logger.info("Executing BPY script...")
         try:
             import bpy
             import math
             # We might want to clear the scene first
             bpy.ops.wm.read_factory_settings(use_empty=True)
         except ImportError:
+            msg = "The 'bpy' module is not installed. Please install it via 'pip install bpy' or run in Blender."
+            logger.error(msg)
             return {
                 "success": False, 
-                "error": "The 'bpy' module is not installed. Please install it via 'pip install bpy' (limited support) or run this agent within a Blender environment.",
+                "error": msg,
                 "stdout": ""
             }
 
         # Capture stdout/stderr
+        import io
         output_buffer = io.StringIO()
         
         try:
@@ -39,12 +35,15 @@ class BlenderOps:
                 exec_globals = {"bpy": bpy, "math": math}
                 exec(script_content, exec_globals)
         except Exception:
+            err_msg = traceback.format_exc()
+            logger.error(f"Error during BPY execution:\n{err_msg}")
             return {
                 "success": False,
-                "error": traceback.format_exc(),
+                "error": err_msg,
                 "stdout": output_buffer.getvalue()
             }
             
+        logger.info("BPY execution successful.")
         return {
             "success": True, 
             "error": None, 
@@ -53,9 +52,12 @@ class BlenderOps:
 
     @staticmethod
     def validate_stl(file_path: str) -> dict:
-        # In a real scenario, we'd use trimesh or blender to check manifoldness
-        # For this MVP, we just check if file exists and has size > 0
+        logger.info(f"Validating STL file: {file_path}")
         import os
         if os.path.exists(file_path) and os.path.getsize(file_path) > 100:
+             logger.info(f"STL validation passed: {os.path.getsize(file_path)} bytes.")
              return {"valid": True, "issues": []}
-        return {"valid": False, "issues": ["File not created or empty"]}
+        
+        issues = ["File not created or empty"]
+        logger.warning(f"STL validation failed: {issues}")
+        return {"valid": False, "issues": issues}

@@ -2,7 +2,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from src.state import GraphState
 from src.config import config
+from src.config.logger import get_logger
 import json
+
+logger = get_logger("Architect")
 
 class ArchitectAgent:
     def __init__(self, model_name=None):
@@ -35,13 +38,13 @@ class ArchitectAgent:
 
     def run(self, state: GraphState):
         blueprint = state["json_blueprint"]
-        print(f"   [Architect] Synthesizing BPY code from blueprint...")
+        logger.info("Synthesizing BPY code from blueprint...")
         
         # If there's feedback and existing code, we might want to iterate.
         msg_content = f"Generate BPY code for this blueprint:\n{json.dumps(blueprint, indent=2)}"
         
         if state.get("feedback"):
-             print(f"   [Architect] Applying feedback/context: {state['feedback']}")
+             logger.info(f"Applying feedback/context: {state['feedback']}")
              msg_content += f"\n\nContext/User Feedback: {state['feedback']}"
 
         messages = [
@@ -58,5 +61,5 @@ class ArchitectAgent:
         elif "```" in code:
             code = code.split("```")[1].split("```")[0].strip()
             
-        print(f"   [Architect] BPY script generated ({len(code)} characters).")
+        logger.info(f"BPY script generated ({len(code)} characters).")
         return {"bpy_code": code}
